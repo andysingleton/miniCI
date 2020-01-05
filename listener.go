@@ -22,32 +22,39 @@ type NetworkManagerInterface interface {
 }
 
 type NetworkManager struct {
-	backend string
-	webPort int
+	Backend string
+	WebPort int
 }
 
 func (net NetworkManager) Webport() int {
-	return net.webPort
+	return net.WebPort
 }
 
 func (net NetworkManager) Get() (string, error) {
-	switch net.backend {
+	switch net.Backend {
 	case "local":
 		return "172.0.0.1", nil
 	case "docker":
 		return "172.17.0.1", nil
 	}
-	return "", errors.New(fmt.Sprintf("Could not handle backend of %s", net.backend))
+	return "", errors.New(fmt.Sprintf("Could not handle backend of %s", net.Backend))
 }
 
 func (net NetworkManager) AddHandler(state AgentStateInterface) {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		output, err := json.Marshal(state.GetAgentState())
-		check(err)
+		Check(err)
 		fmt.Fprintf(w, string(output))
 	})
 }
 
 func (net NetworkManager) Listen() {
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", net.webPort), nil))
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", net.WebPort), nil))
+}
+
+func Listener(networkManager NetworkManagerInterface, stateManager AgentStateInterface) {
+	fmt.Println(executionId, ": Starting Listener")
+	stateManager.InitState(networkManager)
+	networkManager.AddHandler(stateManager)
+	networkManager.Listen()
 }

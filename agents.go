@@ -4,11 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/google/uuid"
+	memberlist "github.com/hashicorp/memberlist"
 	"io/ioutil"
-	"miniCIAgent/memberlist"
-	"os"
-	"sync"
-	"time"
+	"os/exec"
 )
 
 type AgentStateInterface interface {
@@ -56,7 +54,7 @@ func (st *AgentState) InitState(ipGetter NetworkManagerInterface) {
 
 	mutex.Lock()
 	st.Ip, err = ipGetter.Get()
-	check(err)
+	Check(err)
 	st.ExecutionId = executionId
 	st.State = "Starting"
 	mutex.Unlock()
@@ -95,23 +93,47 @@ func listener(networkManager NetworkManagerInterface, stateManager AgentStateInt
 	networkManager.Listen()
 }
 
-type AgentHandlerInterface interface {
+type AgentManagerInterface interface {
 	GetRemoteState(string) (AgentState, error)
 	GetMembers() []*memberlist.Node
 	GetStates() []AgentState
 	UpdateAgentStates(NetworkManagerInterface)
+	Start(Pipeline) error
+	CheckAllAgentsDone(NetworkManagerInterface) bool
 }
 
-type AgentManager struct {
-	gossip      memberlist.Memberlist
-	agentStates []AgentState
+type AgentManagerLocal struct {
+	Gossip      memberlist.Memberlist
+	AgentStates []AgentState
 }
 
-func (handler AgentManager) GetStates() []AgentState {
-	return handler.agentStates
+func (handler AgentManagerLocal) GetStates() []AgentState {
+	return handler.AgentStates
 }
 
-func (handler AgentManager) GetRemoteState(url string) (AgentState, error) {
+func (handler AgentManagerLocal) Start(pipeline Pipeline) error {
+	fmt.Println(executionId, ": Starting agent")
+	args := fmt.Sprintf("--manifest %s", pipeline.Filename)
+	cmd := exec.Command(pipeline.MiniciBinaryPath, args)
+	err := cmd.Start()
+	return err
+}
+
+func (handler AgentManagerLocal) CheckAllAgentsDone(networkManager NetworkManagerInterface) bool {
+	handler.UpdateAgentStates(networkManager)
+	for agent := range handler.AgentStates {
+		// If any node is in a working state, we return false
+		switch handler.AgentStates[agent].State {
+		case "Starting":
+			return false
+		case "Building":
+			return false
+		}
+	}
+	return true
+}
+
+func (handler AgentManagerLocal) GetRemoteState(url string) (AgentState, error) {
 	r, err := myClient.Get(url)
 	if err != nil {
 		return AgentState{}, err
@@ -128,11 +150,11 @@ func (handler AgentManager) GetRemoteState(url string) (AgentState, error) {
 	return result, err
 }
 
-func (handler AgentManager) GetMembers() []*memberlist.Node {
-	return handler.gossip.Members()
+func (handler AgentManagerLocal) GetMembers() []*memberlist.Node {
+	return handler.Gossip.Members()
 }
 
-func (handler *AgentManager) UpdateAgentStates(networkManager NetworkManagerInterface) {
+func (handler *AgentManagerLocal) UpdateAgentStates(networkManager NetworkManagerInterface) {
 	memberList := handler.GetMembers()
 	var agents []AgentState
 
@@ -140,38 +162,8 @@ func (handler *AgentManager) UpdateAgentStates(networkManager NetworkManagerInte
 		var agentState AgentState
 		connectionString := fmt.Sprintf("http://%s:%d", memberList[member], networkManager.Webport())
 		agentState, err := handler.GetRemoteState(connectionString)
-		check(err)
+		Check(err)
 		agents = append(agents, agentState)
 	}
-	handler.agentStates = agents
-}
-
-func AgentLoop(agentHandler AgentHandlerInterface, networkManager NetworkManagerInterface,
-	workflowManager WorkflowManagerInterface, localStateManager AgentStateInterface, waitgGroup *sync.WaitGroup) {
-	for true {
-		agentHandler.UpdateAgentStates(networkManager)
-		agents := agentHandler.GetStates()
-		workflow, err := workflowManager.GetAvailableWorkflow(agents)
-		if err != nil {
-			// terminate here
-			// todo: how do we handle artefacts hosted by the agent?
-			fmt.Println(executionId, ": No workflows available. Terminating agent")
-			defer waitgGroup.Done()
-			os.Exit(0)
-		}
-
-		localStateManager.SetPendingWorkflow(workflow.Name)
-		agentHandler.UpdateAgentStates(networkManager)
-		if workflowManager.IsWorkflowAvailable(workflow) {
-			// Workflow is finally available
-			localStateManager.PromoteToBuilding(workflow.Name)
-			err := processWorkflow(workflow, localStateManager)
-			check(err)
-			// todo: Process workflow
-
-		} else {
-			localStateManager.SetPendingWorkflow("")
-			time.Sleep(1 * time.Second)
-		}
-	}
+	handler.AgentStates = agents
 }

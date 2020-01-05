@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// AgentManager fixture
+// AgentManagerLocal fixture
 type StubAgentManager struct {
 	agentStates []AgentState
 }
@@ -35,7 +35,7 @@ func (handler *StubAgentManager) UpdateAgentStates(NetworkManagerInterface) {
 	handler.agentStates = agentStates
 }
 
-// AgentManager fixture: busy nodes
+// AgentManagerLocal fixture: busy nodes
 type StubAgentManagerBusy struct{}
 
 func (StubAgentManagerBusy) GetMembers() []*memberlist.Node { return []*memberlist.Node{} }
@@ -67,7 +67,7 @@ func (StubAgentManagerBusy) GetStates() []AgentState {
 }
 func (StubAgentManagerBusy) UpdateAgentStates(NetworkManagerInterface) {}
 
-// AgentManager fixture: artefact requirements not met
+// AgentManagerLocal fixture: artefact requirements not met
 type StubAgentManagerNoArtefacts struct{}
 
 func (StubAgentManagerNoArtefacts) GetMembers() []*memberlist.Node { return []*memberlist.Node{} }
@@ -111,7 +111,7 @@ func TestGetStates(t *testing.T) {
 		Artefacts:   nil,
 	},
 	}
-	testHandler := AgentManager{agentStates: testAgentState}
+	testHandler := AgentManagerLocal{agentStates: testAgentState}
 	result := testHandler.GetStates()
 	eq := reflect.DeepEqual(result, testAgentState)
 	if eq == false {

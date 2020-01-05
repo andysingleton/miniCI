@@ -2,17 +2,15 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
-	"fmt"
 	"io/ioutil"
 	"os"
 )
 
 type WorkflowManagerInterface interface {
 	ReadWorkflows(string) error
-	GetAvailableWorkflow([]AgentState) (Workflow, error)
+	GetAvailableWorkflowAmount(AgentManagerInterface) int
 	IsWorkflowAvailable(Workflow) bool
-	updateCompletions([]AgentState)
+	UpdateCompletions([]AgentState)
 }
 
 type WorkflowManager struct {
@@ -52,7 +50,7 @@ func (manager *WorkflowManager) ReadWorkflows(manifest string) error {
 	return nil
 }
 
-func (manager *WorkflowManager) IsWorkflowAvailable(workflow Workflow) bool {
+func (manager WorkflowManager) IsWorkflowAvailable(workflow Workflow) bool {
 	selectWorkflow := true
 
 	// is it available
@@ -78,7 +76,7 @@ func (manager *WorkflowManager) IsWorkflowAvailable(workflow Workflow) bool {
 	return selectWorkflow
 }
 
-func (manager *WorkflowManager) updateCompletions(agents []AgentState) {
+func (manager *WorkflowManager) UpdateCompletions(agents []AgentState) {
 	var unavailableList []string
 	var artefacts []string
 
@@ -92,25 +90,15 @@ func (manager *WorkflowManager) updateCompletions(agents []AgentState) {
 	manager.Artefacts = artefacts
 }
 
-func (manager *WorkflowManager) GetAvailableWorkflow(agents []AgentState) (Workflow, error) {
-	manager.updateCompletions(agents)
+func (manager *WorkflowManager) GetAvailableWorkflowAmount(agentManager AgentManagerInterface) int {
+	agents := agentManager.GetStates()
+	manager.UpdateCompletions(agents)
+	counter := 0
 	for workflow := range manager.Workflows {
 		selectWorkflow := manager.IsWorkflowAvailable(manager.Workflows[workflow])
 		if selectWorkflow == true {
-			return manager.Workflows[workflow], nil
+			counter += 1
 		}
 	}
-	return Workflow{}, errors.New("No available workflows")
-}
-
-func processWorkflow(workflow Workflow, localStateManager AgentStateInterface) error {
-	// todo: processing workflow
-	fmt.Println(executionId, ": Processing workflow: ", workflow.Name)
-
-	// Success
-	for artefact := range workflow.Provides {
-		localStateManager.AddArtefact(workflow.Provides[artefact])
-	}
-	localStateManager.PromoteToDone(workflow.Name)
-	return nil
+	return counter
 }

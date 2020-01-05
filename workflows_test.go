@@ -10,7 +10,7 @@ var getWorkflowsCalled = false
 type StubWorkflowManager struct{}
 
 func (StubWorkflowManager) getWorkflows() { getWorkflowsCalled = true }
-func (StubWorkflowManager) getAvailableWorkflow(AgentHandlerInterface, NetworkManagerInterface) (Workflow, error) {
+func (StubWorkflowManager) getAvailableWorkflow(AgentManagerInterface, NetworkManagerInterface) (Workflow, error) {
 	return Workflow{
 		Name: "foobar",
 	}, nil
@@ -32,7 +32,7 @@ func TestGetWorkflows(t *testing.T) {
 }
 
 //func (manager *WorkflowManager) GetAvailableWorkflow(agents []AgentState) (Workflow, error) {
-//	manager.updateCompletions(agents)
+//	manager.UpdateCompletions(agents)
 //	for workflow := range manager.Workflows {
 //		selectWorkflow := manager.IsWorkflowAvailable(manager.Workflows[workflow])
 //		if selectWorkflow == true {

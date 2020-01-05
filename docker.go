@@ -16,19 +16,19 @@ func getQualifiedFilename(filename string) string {
 		qualified_filename = filename
 	} else {
 		cwd, err := os.Getwd()
-		check(err)
+		Check(err)
 		qualified_filename = filepath.Join(cwd, filename)
 	}
 
 	_, err := os.Stat(qualified_filename)
-	check(err)
+	Check(err)
 	return qualified_filename
 }
 
 func BuildContainer(filename string, image_name string, workflowId string) {
 	cmdStr := fmt.Sprintf("docker build . -f %s -t \"%s\"", filename, image_name)
 	out, err := exec.Command("/bin/sh", "-c", cmdStr).Output()
-	check(err)
+	Check(err)
 
 	fmt.Printf("%s", out)
 }
@@ -52,6 +52,6 @@ func LaunchContainer(imageName string, workflowName string, manifestFile string,
 	fmt.Printf("%s: Starting child %s\n", workflowId, ChildWorkflowId)
 	fmt.Printf("%s: Command is %s\n", workflowId, cmdStr)
 	out, err := exec.Command("/bin/sh", "-c", cmdStr).Output()
-	check(err)
+	Check(err)
 	fmt.Printf("%s", out)
 }
